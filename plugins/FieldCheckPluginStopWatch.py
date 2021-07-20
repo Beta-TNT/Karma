@@ -12,7 +12,7 @@ class FieldCheckPlugin(Karma.AnalyseBase.FieldCheckPluginBase):
             ''
         ),
         "TimerOperation": (
-            "操作，只能是以下值之一：start, stop, reset, peek，字段为空或不存在时按peek处理",
+            "操作，只能是以下值之一：create, start, stop, reset, peek, remove，字段为空或不存在时按peek处理",
             str,
             'start',
             lambda x:x in {'create', 'start', 'stop', 'reset', 'peek', 'remove', None},
@@ -36,7 +36,7 @@ class FieldCheckPlugin(Karma.AnalyseBase.FieldCheckPluginBase):
     }
     def DataPreProcess(self, InputData, InputRule):
         timerName = self._AnalyseBase.FlagGenerator(InputData, InputRule.get('TimerName'))
-        timerOperation = InputRule.get('TimerOperation')
+        timerOperation = InputRule.get('TimerOperation', 'peek')
         timerObj = self._timers.get(timerName)
         rtn = None
         if timerObj:
@@ -59,11 +59,10 @@ class FieldCheckPlugin(Karma.AnalyseBase.FieldCheckPluginBase):
         else:
             rtn = 0.0
             if timerOperation in ('create', 'reset', 'start'):
-                timerObj = {
+                self._timers[timerName]  = {
                     'UpdatedTime': monotonic(),
                     'StoppedTime': monotonic() if timerOperation == 'create' else 0.0
                 }
-                self._timers[timerName] = timerObj
             else:
                 rtn = None
         return rtn
