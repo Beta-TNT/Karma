@@ -41,7 +41,7 @@ class FieldCheckPlugin(Karma.AnalyseBase.FieldCheckPluginBase):
         rtn = None
         if timerObj:
             rtn = (monotonic() if not timerObj['StoppedTime'] else timerObj['StoppedTime']) - timerObj['UpdatedTime']
-            if timerObj['StoppedTime'] and timerOperation == 'start':
+            if timerOperation == 'start' and timerObj['StoppedTime']:
                 timerObj['UpdatedTime'] += monotonic() - timerObj['StoppedTime']
                 timerObj['StoppedTime'] = 0.0
             elif timerOperation == 'stop' and not timerObj['StoppedTime']:
@@ -49,23 +49,23 @@ class FieldCheckPlugin(Karma.AnalyseBase.FieldCheckPluginBase):
             elif timerOperation == 'reset':
                 timerObj['UpdatedTime'] = monotonic()
                 timerObj['StoppedTime'] = 0.0
-            if timerOperation == 'remove':
+            elif timerOperation == 'remove':
                 self._timers.pop(timerName, None)
+            elif timerOperation == 'peek':
+                pass
+            else:
+                rtn = None
 
         else:
             rtn = 0.0
-            if timerOperation == 'create':
+            if timerOperation in ('create', 'reset', 'start'):
                 timerObj = {
                     'UpdatedTime': monotonic(),
-                    'StoppedTime': monotonic()
+                    'StoppedTime': monotonic() if timerOperation == 'create' else 0.0
                 }
-            elif timerOperation in ('reset', 'start'):
-                timerObj = {
-                    'UpdatedTime': monotonic(),
-                    'StoppedTime': 0.0
-                }
-            self._timers[timerName] = timerObj
-
+                self._timers[timerName] = timerObj
+            else:
+                rtn = None
         return rtn
             
     @property
