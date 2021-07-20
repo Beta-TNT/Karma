@@ -37,8 +37,6 @@ class RulePlugin(Karma.AnalyseBase.RulePluginBase):
         self.PluginInit()
 
     def DataPreProcess(self, InputData, InputRule):
-        '插件数据分析方法用户函数，接收被分析的dict()类型数据和规则作为参考数据，由用户函数判定是否满足规则。返回值定义同_DefaultSingleRuleTest()函数'
-        # add your own data preprocess code here
         modifiedData = copy.copy(InputData)
         CodecFields = InputData.get('CodecFields',{})
         for CodecField in CodecFields:
@@ -61,7 +59,7 @@ class RulePlugin(Karma.AnalyseBase.RulePluginBase):
                             modifiedData[CodecField] = base64.b64encode(modifiedData[CodecField])
                     elif flagChar == 'b':
                         modifiedData[CodecField] = base64.b64decode(modifiedData[CodecField])
-        return super().AnalyseSingleData(modifiedData, InputRule)
+        return modifiedData
 
     @property
     def PluginInstructions(self):

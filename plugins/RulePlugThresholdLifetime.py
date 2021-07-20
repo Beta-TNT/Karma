@@ -109,7 +109,6 @@ class RulePlugin(Karma.AnalyseBase.RulePluginBase):
     _cache = dict() # Flag-CacheItem映射
 
     def FlagPeek(self, InputFlag):
-        '默认Flag偷窥函数，检查Flag是否有效，但并不会触发Threshold或Lifetime消耗，也不进行映射管理。对于Threshold不为0的Flag也返回缓存对象'
         if not InputFlag: #hitResult为True且前序Flag为空，为入口点规则
             return True, None
         else:
@@ -120,7 +119,6 @@ class RulePlugin(Karma.AnalyseBase.RulePluginBase):
             return rtn, hitItem
 
     def FlagCheck(self, InputFlag):
-        '默认Flag检查函数，检查Flag是否有效，返回True/False。检查将完成Flag管理功能'
         rtn, hitItem = self.FlagPeek(InputFlag)
         if not rtn:
             if hitItem:
@@ -140,14 +138,6 @@ class RulePlugin(Karma.AnalyseBase.RulePluginBase):
         self._AnalyseBase.RemoveFlag(InputFlag)
 
     def RuleHit(self, InputData, InputRule, HitItem):
-        '插件数据分析方法用户函数，接收被分析的dict()类型数据和规则作为参考数据，由用户函数判定是否满足规则。返回值定义同_DefaultSingleRuleTest()函数'
-        # 0、先调用默认的单规则匹配函数，获得当前规则/flag在基础算法中的匹配结果
-        # 1、由于插件函数参数不包括PrevFlag，需要再构造一次PrevFlag，要求和主算法做匹配时构造的PrevFlag必须相同
-        # 2、在插件内缓存中查找PrevFlag是否有效，完成Flag生存期管理
-        # 3、如果有效，返回PrevFlag在插件内匹配结果以及原分析函数返回对象，否则返回False, None
-
-        # 再次构造Flag。由于基础算法的FlagCheck在单规则匹配成功之后才进行
-        # 因此可以在插件层对Flag进行“拦截”
         if self.FlagCheck(InputRule.get('PrevFlagContent')):
             # 在插件内构造Flag-CacheItem映射
             if InputRule.get("Threshold", 0) or InputRule.get("Lifetime", 0):

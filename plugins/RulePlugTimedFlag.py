@@ -39,8 +39,6 @@ class RulePlugin(Karma.AnalyseBase.RulePluginBase):
         self._AnalyseBase._flags.pop(InputFlag, None)
 
     def RuleHit(self, InputData, InputRule, HitItem):
-        '插件数据分析方法用户函数，接收被分析的dict()类型数据和规则作为参考数据，由用户函数判定是否满足规则。返回值定义同_DefaultSingleRuleTest()函数'
-        # flag check
         prevFlag = InputRule.get('PrevFlagContent')
         if prevFlag in self._liveFlags or not prevFlag:
             # 获取本级规则Flag

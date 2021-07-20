@@ -1,4 +1,4 @@
-import sys, os, re
+import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import Karma
 
@@ -19,19 +19,19 @@ class FieldCheckPlugin(Karma.AnalyseBase.FieldCheckPluginBase):
         )
     }
 
-    def DataPreProcess(self, InputData, InputRule):
-        checkList = InputRule.get('FieldName', [])
+    def DataPreProcess(self, InputData, InputFieldCheckRule):
+        checkList = InputFieldCheckRule.get('FieldName', [])
         pluginResult = False
         if type(checkList) == str:
             checkList = [checkList]
         if checkList:
-            if abs(InputRule['FieldExistsMatchCode']) == 1:
+            if abs(InputFieldCheckRule['FieldExistsMatchCode']) == 1:
                 pluginResult = all(map(lambda x:x in InputData, checkList))
-            elif abs(InputRule['FieldExistsMatchCode']) == 2:
+            elif abs(InputFieldCheckRule['FieldExistsMatchCode']) == 2:
                 pluginResult = any(map(lambda x:x in InputData, checkList))
             else:
                 pass
-            pluginResult = ((InputRule['FieldExistsMatchCode'] < 0) ^ pluginResult)
+            pluginResult = ((InputFieldCheckRule['FieldExistsMatchCode'] < 0) ^ pluginResult)
         return pluginResult
 
     @property

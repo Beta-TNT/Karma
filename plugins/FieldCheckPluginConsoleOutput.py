@@ -1,4 +1,4 @@
-import sys, os, re
+import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import Karma
 
@@ -34,26 +34,26 @@ class FieldCheckPlugin(Karma.AnalyseBase.FieldCheckPluginBase):
         )
     }
 
-    def DataPostProcess(self, InputData, InputRule, HitItem):
+    def DataPostProcess(self, InputData, InputFieldCheckRule, HitItem):
         try:
             printContents = map(
                 lambda x:self._AnalyseBase.FlagGenerator(InputData, x),
                 filter(
                     None,
-                    [InputRule.get('PrintContent')] + InputRule.get('PrintContentLines')
+                    [InputFieldCheckRule.get('PrintContent')] + InputFieldCheckRule.get('PrintContentLines')
                 )
             )
             if printContents:
-                print(*printContents, end=InputRule.get('end'), sep=InputRule.get('sep'))
+                print(*printContents, end=InputFieldCheckRule.get('end'), sep=InputFieldCheckRule.get('sep'))
 
-            additionalOutput = InputRule.get('AdditionalOutput', self.DefaultExtraRuleFieldValue('AdditionalOutput'))
+            additionalOutput = InputFieldCheckRule.get('AdditionalOutput', self.DefaultExtraRuleFieldValue('AdditionalOutput'))
             if additionalOutput & 1:
                 print("Hit data:\r\n%s" % InputData)
             if additionalOutput & 2:
-                print("Hit rule:\r\n%s" % InputRule)
+                print("Hit rule:\r\n%s" % InputFieldCheckRule)
         except Exception as e:
             print(e)
-        return super().DataPostProcess(InputData, InputRule, HitItem)
+        return super().DataPostProcess(InputData, InputFieldCheckRule, HitItem)
 
     @property
     def PluginInstructions(self):

@@ -1,4 +1,4 @@
-import sys, os, hashlib, zlib
+import sys, os, hashlib
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import Karma
 from enum import IntEnum
@@ -23,35 +23,25 @@ class FieldCheckPlugin(Karma.AnalyseBase.FieldCheckPluginBase):
         )
     }
 
-    def DataPreProcess(self, InputData, InputRule):
+    def DataPreProcess(self, InputData, InputFieldCheckRule):
         '哈希比较插件'
-        fieldCheckList = InputRule.get('FieldCheckList')
-        if fieldCheckList:
-            i = 0
-            for fieldCheckRule in filter(lambda x:101<= abs(x.get('MatchCode', 0)) <= 106 and type(InputData.get(x['FieldName'])) in (str, bytes, bytearray), fieldCheckList):
-                try:
-                    targetData = InputData[fieldCheckRule['FieldName']].encode(fieldCheckRule.get("Encoding", 'utf-8')) if type(InputData[fieldCheckRule['FieldName']]) == str else InputData[fieldCheckRule['FieldName']]
-                    targetDataFieldName = '%s_Content_%s' % (self._CurrentPluginName, i)
-                    m = None
-                    if abs(fieldCheckRule['MatchCode']) == self.HashMatchCode.MD5:
-                        m = hashlib.md5(targetData)
-                    elif abs(fieldCheckRule['MatchCode']) == self.HashMatchCode.SHA1:
-                        m = hashlib.sha1(targetData)
-                    elif abs(fieldCheckRule['MatchCode']) == self.HashMatchCode.SHA224:
-                        m = hashlib.sha224(targetData)
-                    elif abs(fieldCheckRule['MatchCode']) == self.HashMatchCode.SHA256:
-                        m = hashlib.sha256(targetData)
-                    elif abs(fieldCheckRule['MatchCode']) == self.HashMatchCode.SHA384:
-                        m = hashlib.sha384(targetData)
-                    elif abs(fieldCheckRule['MatchCode']) == self.HashMatchCode.SHA512:
-                        m = hashlib.sha512(targetData)
-                    InputData[targetDataFieldName] = m.hexdigest()
-                    fieldCheckRule['FieldName'] = targetDataFieldName
-                    fieldCheckRule['MatchContent'] = fieldCheckRule['MatchContent'].lower()
-                    fieldCheckRule['MatchCode'] = 1 if fieldCheckRule['MatchCode'] >= 0 else -1
-                    i += 1
-                except:
-                    continue
+        targetData = InputData[InputFieldCheckRule['FieldName']].encode(InputFieldCheckRule.get("Encoding", 'utf-8')) if type(InputData[InputFieldCheckRule['FieldName']]) == str else InputData[InputFieldCheckRule['FieldName']]
+        m = None
+        if abs(InputFieldCheckRule['MatchCode']) == self.HashMatchCode.MD5:
+            m = hashlib.md5(targetData)
+        elif abs(InputFieldCheckRule['MatchCode']) == self.HashMatchCode.SHA1:
+            m = hashlib.sha1(targetData)
+        elif abs(InputFieldCheckRule['MatchCode']) == self.HashMatchCode.SHA224:
+            m = hashlib.sha224(targetData)
+        elif abs(InputFieldCheckRule['MatchCode']) == self.HashMatchCode.SHA256:
+            m = hashlib.sha256(targetData)
+        elif abs(InputFieldCheckRule['MatchCode']) == self.HashMatchCode.SHA384:
+            m = hashlib.sha384(targetData)
+        elif abs(InputFieldCheckRule['MatchCode']) == self.HashMatchCode.SHA512:
+            m = hashlib.sha512(targetData)
+        else:
+            return None
+        return m.hexdigest().lower()
 
     @property
     def PluginInstructions(self):
