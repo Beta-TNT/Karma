@@ -171,7 +171,7 @@ class AnalyseBase(object):
     _coreFieldCheckPlugin = None
     _coreRulePlugin = None
 
-    PluginDir = os.path.abspath(os.path.dirname(__file__)) + '/plugins/' # 插件存放路径
+    PluginDir = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'plugins') # 插件存放路径
     DefaultEncoding = 'utf-8'
 
     def __init__(self):
