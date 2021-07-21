@@ -28,7 +28,7 @@ class FieldCheckPlugin(Karma.AnalyseBase.FieldCheckPluginBase):
     # peek      返回指定计数器的值但不改变它（忽略Step字段），不存在时返回None
     # remove    返回指定计数器的值并将其删除。不存在时返回None
 
-    # 返回值是指定计时器的值，单位是秒，需要使用MatchCode=4/-4（GreaterThan/LessOrEqual）判断值的范围
+    # 返回值是计数器的值，需要使用MatchCode=1/-1（Equal/NotEqual）或4/-4（GreaterThan/LessOrEqual）判断值的范围
 
     _counter = dict()
     def DataPreProcess(self, InputData, InputRule):
