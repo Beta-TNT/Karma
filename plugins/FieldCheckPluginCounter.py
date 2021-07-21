@@ -1,7 +1,6 @@
 import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import Karma
-from time import monotonic
 
 class FieldCheckPlugin(Karma.AnalyseBase.FieldCheckPluginBase):
     '计数器插件'
@@ -38,7 +37,7 @@ class FieldCheckPlugin(Karma.AnalyseBase.FieldCheckPluginBase):
         counterValue = self._counter.get(counterName)
         rtn = None
         if counterOperation == 'count':
-            rtn = counterValue if counterValue else 0  + InputRule.get('Step', 1)
+            rtn = (counterValue if counterValue else 0) + InputRule.get('Step', 1)
             self._counter[counterName] = rtn
         elif counterOperation == 'peek':
             rtn = counterValue
