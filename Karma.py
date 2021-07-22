@@ -313,7 +313,7 @@ class AnalyseBase(object):
                 pass
         else:
             rtn = hitItem
-        return rtn
+        return ruleCheckResult, rtn
 
     def MultiRuleAnalyse(self, InputData, InputRules, RuleHitCallbackFunc):
         '''默认的分析算法主函数。根据已经加载的规则和输入数据。'''
@@ -321,8 +321,8 @@ class AnalyseBase(object):
             RuleHitCallbackFunc = self._DummyCallbackFunc
             
         if type(InputRules) in (list, set, tuple):
-            # 输入规则是列表时，返回值是列表
-            return list(
+            # 输入规则是列表时，返回值是列表，剔除未命中的结果
+            return {i[1] for i in
                 map(
                     lambda x:self.SingleRuleAnalyse(
                         InputData=InputData,
@@ -330,11 +330,12 @@ class AnalyseBase(object):
                         RuleHitCallbackFunc=RuleHitCallbackFunc
                     ),
                     InputRules
-                )
-            )
+                ) if i[0]
+            }
         elif type(InputRules) == dict:
             # 输入规则是字典时，返回值也是字典，规则的Key对应规则命中的对象
-            return dict(
+            # 如果对应的规则未能命中(False, None)，则会从返回值中剔除
+            return {k:v[1] for k,v in
                 zip(
                     InputRules.keys(),
                     map(
@@ -345,8 +346,8 @@ class AnalyseBase(object):
                         ),
                         InputRules.values()
                     )
-                )
-            )
+                ) if v[0]
+            }
         else:
             return None
 
@@ -364,9 +365,7 @@ class CoreFieldCheck(AnalyseBase.FieldCheckPluginBase):
  
         # 匹配代码对应的负数代表结果取反，例如-1代表不等于（NotEqual），不再显式声明
         # Negative code means flip the result, i.e., -1 means NotEqual, -4 means LessThanOrEqual
-        # 目前仅支持插件应用在规则第一层逻辑
-        # 不设立字段存在匹配（exists），如果字段匹配规则请求的字段名在数据中不存在，该字段规则匹配将被忽略
-        # 如需判断字段匹配，请使用插件AnalyzerPluginFieldExists.py
+
     _PluginRuleFields = {
         "FieldName": (
             "要匹配的字段名", 
@@ -570,12 +569,6 @@ class CoreRule(AnalyseBase.RulePluginBase):
         OpAnd       = 1
         OpOr        = 2
         # 逻辑代码对应的负数代表结果取反，例如-1代表NotAnd，不再显式声明
- 
-        # 匹配代码对应的负数代表结果取反，例如-1代表不等于（NotEqual），不再显式声明
-        # Negative code means flip the result, i.e., -1 means NotEqual, -4 means LessThanOrEqual
-        # 目前仅支持插件应用在规则第一层逻辑
-        # 不设立字段存在匹配（exists），如果字段匹配规则请求的字段名在数据中不存在，该字段规则匹配将被忽略
-        # 如需判断字段匹配，请使用插件AnalyzerPluginFieldExists.py
     
     def FieldCheckList(self, InputData, InputFieldCheckRuleList, InputOperator=1):
         rtn = False
@@ -601,10 +594,6 @@ class CoreRule(AnalyseBase.RulePluginBase):
 
     def SingleRuleTest(self, InputData, InputRule):
         '用数据匹配单条规则，如果数据匹配当前规则，返回Flag命中的应用层数据对象'
-        if InputRule.get("Operator", 0) == self.OperatorCode.Preserved:
-            # Magicode!
-            return (True, None)
-
         if type(InputData) != dict or type(InputRule) != dict:
             raise TypeError("Invalid InputData or InputRule type, expecting dict")
 
@@ -614,7 +603,7 @@ class CoreRule(AnalyseBase.RulePluginBase):
         # 并且规则会预先生成PrevFlag并写入规则（PrevFlagContent）
         hitItem = None
         rtn= False 
-        if InputRule.get("PrevFlag", ""):  # 判断前序flag是否为空
+        if InputRule.get("PrevFlag", "") and not InputRule.get("Operator", 0) == self.OperatorCode.Preserved:  # 判断前序flag是否为空
             prevFlag = InputRule["PrevFlagContent"]
             rtn, hitItem = prevFlag in self._AnalyseBase._flags, self._AnalyseBase._flags.get(prevFlag)
         else:
