@@ -3,15 +3,6 @@
 __author__ = 'Beta-TNT'
 __version__= '3.1.0'
 
-# Project Karma
-# 3.0版本应增加RuleFeeder功能
-# 功能设计：应用类似Lifetime和Expire的生存周期管理机制对动态规则进行管理
-# 设计两个规则池：静态和动态。
-# 静态规则池和原版规则列表一样，是固化的
-# 动态规则池来自接口，由内部对象负责生命周期管理
-# 使用的时候，两个规则池的有效规则合并成一个规则列表
-# 静态规则池可以为空，完全依赖输入的动态规则
-
 import re, os, base64
 from enum import IntEnum
 coreFieldCheckPluginName = 'core'
@@ -39,43 +30,6 @@ class AnalyseBase(object):
             Operator    ：如果是多层数据和多层字段匹配规则，MatchCode=7或-7时有效，对下一级规则列表使用的字段匹配运算代码，定义同OperatorCode
             PluginName  ：这条规则需要调用的插件名
      ''' 
-    # Lifetime/Threshold和Delay/Expire功能拆分成两个单独的插件，基础算法中不再实现
-
-    # 3.0.0 版插件工作原理：
-    # 规则如果需要调用插件，则先用插件的数据预处理函数DataPreProcess(InputData, InputRule)扫描整个数据和子规则
-    # 如果遇到符合插件要求的子规则，则插件根据数据和子规则生成新的数据项，以%plugin_name%_#index#作为Key写入原数据
-    # 例如下面这条示例规则的切片插件，如果输入数据里'SampleField1'字段的内容是'c:\windows\system32\sol.exe'，
-    # 插件会在输入数据中增加名为'AnalyzerPluginSlicer_0'的字段，内容是'.exe'（r'c:\windows\system32\sol.exe'[-4:]）
-    # 插件生成数据之后不会立即根据规则内容进行判定，而是将这条规则的FieldName修改为'AnalyzerPluginSlicer_0'
-    # 插件执行流程结束之后，进入常规规则判定时，规则会使用'AnalyzerPluginSlicer_0'作为字段名，
-    # 从结果中获取插件添加的字段的值，再根据基础的判定逻辑规则是否命中。
-    # 相当于在插件判定流程结束之后，将一条需要调用插件的规则转换为常规规则
-    # 这种机制问题在于不够灵活，而且在原数据中插入新字段的方式有重名的风险
-    # 如果有两种插件要求的字段签名一致（或者其中一个是另一个的子集），会造成不可预料的结果
-
-    # 拟修改方案
-    # 废除规则中的 PluginNames 字段，改为在每条字段判定规则中增加 PluginName 字段
-    # 废除插件预扫描机制和插入插件结果机制，改为在字段判定阶段执行插件功能和结果判断逻辑
-    # 同一条字段判定规则只能执行一个插件
-    # 如需使用插件的数据预处理功能，请将调用预处理插件的规则的MatchMode设为0（Preserved）
-    # 引擎会按列表顺序扫描规则列表，使用map-reduce方式运行MatchMode为0的规则调用的插件处理输入数据
-    # 并将这些规则从后续的判定流程中剔除
-    # 引擎本身并不限制插件对输入数据甚至输入规则的修改，插件开发人员和用户应谨慎使用这一机制
-    # 在调用插件的字段判定规则中，插件对该规则的所有字段有绝对的控制权，插件可以在运行时临时给规则添加或修改字段
-    # 比如，对于分析引擎默认需要具备的MatchCode和MatchContent字段，其值的含义在插件规则中也可能被插件重定义
-    # 实际上就是最初.net版分析引擎时的插件机制
-
-    # 以上修改已经进行完毕，相当于将目前插件机制的范围缩小到字段匹配功能上
-    # 版本号更新至3.1.0
-    # 拟增加规则级插件，可接管单条规则匹配逻辑，实现数据预处理、过滤以及功能扩展等特性
-
-    # 已增加规则级插件，接口名RulePlugin，原字段匹配插件接口名改为FieldCheckPlugin
-
-    # 2021-07-19
-    # 核心的默认字段匹配逻辑和规则匹配逻辑已拆分成单独的插件类，在引擎代码文件里实现
-    # 两个核心插件强制加载，可通过名称'core'调用
-    # 如果规则没有通过"PluginName"字段指定插件名，则默认调用core插件
-
     class PluginBase(object):
         '字段匹配插件基类'
         _PluginRuleFields = {}
@@ -113,7 +67,7 @@ class AnalyseBase(object):
             '字段匹配插件'
             # 默认情况下等价于原字段匹配逻辑
             if not InputFieldCheckRule.get('FieldName'):
-                # 不指定字段名的时候，返回全部当前数据
+                # 不指定字段名（为空或者值不存在）的时候，返回全部当前数据
                 return InputData
             else:
                 # 指定字段名，则返回字段值，如果字段不存在返回None
@@ -127,13 +81,39 @@ class AnalyseBase(object):
             # 如果无需操作对分析引擎内部对象，可无需改动该函数
             # 如无特殊处理，会调用默认的字段检查函数检查规则生成的数据
             # 如有需要，可重写本函数，返回布尔型数据
-            if self.FieldCheck(
-                self.DataPreProcess(
-                    InputData,
+            # 已支持MatchContent字段内容是列表/元组/集合，会对每个元素进行测试，测试结果按Operator字段指定的逻辑进行组合
+
+            fieldCheckResult = False
+            matchContent = InputFieldCheckRule.get('MatchContent')
+            operatorLogic = InputFieldCheckRule.get('Operator', 2)
+            if type(matchContent) in (list, tuple, set):
+                matchResults = map(
+                    lambda x:self.FieldCheck(
+                        self.DataPreProcess(
+                            InputData,
+                            InputFieldCheckRule
+                        ),
+                        dict(InputFieldCheckRule, **{"MatchContent" : x})
+                    ),
+                    matchContent
+                )
+                matchResult = False
+                if abs(operatorLogic) == 1:
+                    # OpAll
+                    matchResult = all(matchResults)
+                elif abs(operatorLogic) == 2:
+                    # OpAny
+                    matchResult = any(matchResults)
+                fieldCheckResult = (operatorLogic < 0) ^ matchResult
+            else:
+                fieldCheckResult = self.FieldCheck(
+                    self.DataPreProcess(
+                        InputData,
+                        InputFieldCheckRule
+                    ),
                     InputFieldCheckRule
-                ),
-                InputFieldCheckRule
-            ):
+                )
+            if fieldCheckResult:
                 return self.DataPostProcess(InputData, InputFieldCheckRule)
             else:
                 return False
@@ -254,10 +234,13 @@ class AnalyseBase(object):
         for inputDataKey in InputData:
             inputDataItem = InputData[inputDataKey]
             if type(inputDataItem) in (bytes, bytearray):
-                try:
-                    InputData[inputDataKey] = inputDataItem.decode(BytesDecoding)
-                except Exception:
-                    InputData[inputDataKey] = ""
+                if BytesDecoding == 'base64':
+                    InputData[inputDataKey] = base64.b64decode(inputDataItem)
+                else:
+                    try:
+                        InputData[inputDataKey] = inputDataItem.decode(BytesDecoding)
+                    except Exception:
+                        InputData[inputDataKey] = ""
 
         rtn = InputTemplate.format(**InputData)
         return rtn
@@ -362,7 +345,7 @@ class CoreFieldCheck(AnalyseBase.FieldCheckPluginBase):
         LengthEqual         = 5 # 元数据比较：数据长度等于（忽略数字类型数据）
         LengthGreaterThan   = 6 # 元数据比较：数据长度大于（忽略数字类型数据）
         SubFieldRuleList    = 7 # 应对多层数据的子规则集匹配，FieldName对应的字段必须是dict。如果不指定FieldName，则判断当前层级数据
- 
+
         # 匹配代码对应的负数代表结果取反，例如-1代表不等于（NotEqual），不再显式声明
         # Negative code means flip the result, i.e., -1 means NotEqual, -4 means LessThanOrEqual
 
@@ -373,7 +356,7 @@ class CoreFieldCheck(AnalyseBase.FieldCheckPluginBase):
             ''
         ),
         "MatchContent": (
-            "匹配内容", 
+            "匹配内容，当字段内容是list、tuple和set时会使用当前规则对每个匹配内容元素进行测试，然后根据Operator字段进行逻辑运算", 
             str,
             None
         ),
@@ -383,7 +366,7 @@ class CoreFieldCheck(AnalyseBase.FieldCheckPluginBase):
             1
         ),
         "Operator": (
-            "多层匹配时深层数据规则集逻辑，负值代表结果取反", 
+            "产生复数匹配结果时匹配结果之间的逻辑，负值代表结果取反", 
             int,
             1
         ),
@@ -400,7 +383,7 @@ class CoreFieldCheck(AnalyseBase.FieldCheckPluginBase):
         if not InputFieldCheckRule:
             return False
         fieldCheckResult = False
-        matchContent = InputFieldCheckRule["MatchContent"]
+        matchContent = InputFieldCheckRule.get("MatchContent")
         matchCode = InputFieldCheckRule["MatchCode"]
         if matchCode == self.FieldMatchMode.Preserved:
             fieldCheckResult = True
@@ -495,21 +478,21 @@ class CoreFieldCheck(AnalyseBase.FieldCheckPluginBase):
         fieldCheckResult = ((matchCode < 0) ^ fieldCheckResult) # 负数代码，结果取反
         return fieldCheckResult
 
-    def AnalyseSingleField(self, InputData, InputFieldCheckRule):
-        '插件数据分析方法用户函数，接收被分析的dict()类型数据和规则作为参考数据，由用户函数判定是否满足规则。返回值定义同DefaultSingleRuleTest()函数'
-        # 如果无需操作对分析引擎内部对象，可无需改动该函数
-        # 如无特殊处理，会调用默认的字段检查函数检查规则生成的数据
-        # 如有需要，可重写本函数，返回布尔型数据
-        if self.FieldCheck(
-            self.DataPreProcess(
-                InputData,
-                InputFieldCheckRule
-            ),
-            InputFieldCheckRule
-        ):
-            return self.DataPostProcess(InputData, InputFieldCheckRule)
-        else:
-            return False
+    # def AnalyseSingleField(self, InputData, InputFieldCheckRule):
+    #     '插件数据分析方法用户函数，接收被分析的dict()类型数据和规则作为参考数据，由用户函数判定是否满足规则。返回值定义同DefaultSingleRuleTest()函数'
+    #     # 如果无需操作对分析引擎内部对象，可无需改动该函数
+    #     # 如无特殊处理，会调用默认的字段检查函数检查规则生成的数据
+    #     # 如有需要，可重写本函数，返回布尔型数据
+    #     if self.FieldCheck(
+    #         self.DataPreProcess(
+    #             InputData,
+    #             InputFieldCheckRule
+    #         ),
+    #         InputFieldCheckRule
+    #     ):
+    #         return self.DataPostProcess(InputData, InputFieldCheckRule)
+    #     else:
+    #         return False
 
     @property
     def PluginInstructions(self):
@@ -566,8 +549,8 @@ class CoreRule(AnalyseBase.RulePluginBase):
 
     class OperatorCode(IntEnum):
         Preserved   = 0 # 预留，使用该代码的字段匹配结果永远为真
-        OpAnd       = 1
-        OpOr        = 2
+        OpAll       = 1
+        OpAny       = 2
         # 逻辑代码对应的负数代表结果取反，例如-1代表NotAnd，不再显式声明
     
     def FieldCheckList(self, InputData, InputFieldCheckRuleList, InputOperator=1):
@@ -582,9 +565,9 @@ class CoreRule(AnalyseBase.RulePluginBase):
                     InputFieldCheckRuleList
                 )
             )
-            if abs(InputOperator) == self.OperatorCode.OpOr:
+            if abs(InputOperator) == self.OperatorCode.OpAny:
                 rtn = any(fieldCheckResults)
-            elif abs(InputOperator) == self.OperatorCode.OpAnd:
+            elif abs(InputOperator) == self.OperatorCode.OpAll:
                 rtn = all(fieldCheckResults)
             # 负数匹配代码，结果取反
             rtn = bool(fieldCheckResults) and ((InputOperator < 0) ^ rtn)
