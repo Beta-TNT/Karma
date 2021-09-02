@@ -46,7 +46,7 @@ class FieldCheckPlugin(Karma.AnalyseBase.FieldCheckPluginBase):
         else:
             pass
         return rtn
-            
+
     @property
     def PluginInstructions(self):
         '插件介绍文字'

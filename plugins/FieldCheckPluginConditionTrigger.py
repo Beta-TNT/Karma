@@ -1,4 +1,4 @@
-import sys, os, re
+import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import Karma
 
@@ -24,10 +24,6 @@ class FieldCheckPlugin(Karma.CoreFieldCheck):
         )
 
     def AnalyseSingleField(self, InputData, InputFieldCheckRule):
-        '插件数据分析方法用户函数，接收被分析的dict()类型数据和规则作为参考数据，由用户函数判定是否满足规则。返回值定义同DefaultSingleRuleTest()函数'
-        # 如果无需操作对分析引擎内部对象，可无需改动该函数
-        # 如无特殊处理，会调用默认的字段检查函数检查规则生成的数据
-        # 如有需要，可重写本函数，返回布尔型数据
         if self.FieldCheck(
             self.DataPreProcess(
                 InputData,

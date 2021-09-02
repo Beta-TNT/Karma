@@ -23,7 +23,7 @@ class FieldCheckPlugin(Karma.AnalyseBase.FieldCheckPluginBase):
             0
         ),
         "RegexFunc": (
-            "使用的正则表达式函数：search, match, findall。使用findall时，匹配结果后缀序号将改为#,#，为空或不存在时使用默认值search", 
+            "使用的正则表达式函数：search, match, findall。使用findall时需要指定ResultIndex", 
             str,
             'search',
             lambda x:x in ('search', 'match', 'findall'),
@@ -39,7 +39,10 @@ class FieldCheckPlugin(Karma.AnalyseBase.FieldCheckPluginBase):
             regexFunc = InputFieldCheckRule.get('RegexFunc', 'search')
             resultIndex = InputFieldCheckRule.get('ResultIndex', 0)
             if regexFunc == 'findall':
-                return re.findall(regexPattern, targetData, regexFlag)[resultIndex]
+                try:
+                    return re.findall(regexPattern, targetData, regexFlag)[resultIndex]
+                except:
+                    return None
             elif regexFunc == 'search':
                 return re.search(regexPattern, targetData, regexFlag).group() 
             elif regexFunc == 'match':

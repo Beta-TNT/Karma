@@ -30,10 +30,6 @@ class FieldCheckPlugin(Karma.AnalyseBase.FieldCheckPluginBase):
     # 返回值是指定计时器的值，单位是秒，需要使用MatchCode=4/-4（GreaterThan/LessOrEqual）判断值的范围
 
     _timers = dict()
-    __timerInfo = {
-        'UpdatedTime': 0.0,
-        'StoppedTime': 0.0
-    }
     def DataPreProcess(self, InputData, InputRule):
         timerName = self._AnalyseBase.FlagGenerator(InputData, InputRule.get('TimerName'))
         timerOperation = InputRule.get('TimerOperation', 'peek')
