@@ -15,7 +15,7 @@ class RulePlugin(Karma.CoreRule):
     def RuleHit(self, InputData, InputRule, HitItem):
         '数据分析方法接口，只有当数据满足规则的时候才执行插件功能'
         try:
-            cmd = self._AnalyseBase.FlagGenerator(InputData, InputRule.get('ShellCommand', ''))
+            cmd = self._AnalyseBase.PlaceHolderReplace(InputData, InputRule.get('ShellCommand', ''))
             subprocess.Popen(cmd) # 调用subprocess.Popen()函数执行命令
         except Exception as e:
             print(e)

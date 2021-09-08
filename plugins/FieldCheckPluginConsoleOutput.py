@@ -37,7 +37,7 @@ class FieldCheckPlugin(Karma.AnalyseBase.FieldCheckPluginBase):
     def DataPostProcess(self, InputData, InputFieldCheckRule, HitItem):
         try:
             printContents = map(
-                lambda x:self._AnalyseBase.FlagGenerator(InputData, x),
+                lambda x:self._AnalyseBase.PlaceHolderReplace(InputData, x),
                 filter(
                     None,
                     [InputFieldCheckRule.get('PrintContent')] + InputFieldCheckRule.get('PrintContentLines')
