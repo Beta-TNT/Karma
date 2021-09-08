@@ -1,12 +1,10 @@
 'Karma is a status-based and plugin-extensible rule engine with callback mechanism.'
 
 __author__ = 'Beta-TNT'
-__version__= '3.1.0'
+__version__= '3.2.0'
 
 import re, os, base64
 from enum import IntEnum
-coreFieldCheckPluginName = 'core'
-coreRulePluginName = 'core'
 
 class AnalyseBase(object):
 
@@ -81,7 +79,9 @@ class AnalyseBase(object):
             # 如果无需操作对分析引擎内部对象，可无需改动该函数
             # 如无特殊处理，会调用默认的字段检查函数检查规则生成的数据
             # 如有需要，可重写本函数，返回布尔型数据
-            # 已支持MatchContent字段内容是列表/元组/集合，会对每个元素进行测试，测试结果按Operator字段指定的逻辑进行组合
+            # 已支持MatchContent字段内容是列表/元组/集合
+            # 会使用当前规则的其他字段和MatchContent的每个元素进行对数据进行测试
+            # 测试结果按Operator字段指定的逻辑进行组合
 
             fieldCheckResult = False
             matchContent = InputFieldCheckRule.get('MatchContent')
@@ -159,8 +159,8 @@ class AnalyseBase(object):
         self._coreRulePlugin = CoreRule(self)
         self._plugins['FieldCheckPlugins'] = self.__LoadPlugins('FieldCheckPlugin')
         self._plugins['RulePlugins'] = self.__LoadPlugins('RulePlugin')
-        self._plugins['FieldCheckPlugins'][coreFieldCheckPluginName] = self._coreFieldCheckPlugin
-        self._plugins['RulePlugins'][coreRulePluginName] = self._coreRulePlugin
+        self._plugins['FieldCheckPlugins'][self._coreFieldCheckPlugin.AliasName] = self._coreFieldCheckPlugin
+        self._plugins['RulePlugins'][self._coreRulePlugin.AliasName] = self._coreRulePlugin
         self.FieldCheckList = self._coreRulePlugin.FieldCheckList
 
     def __LoadPlugins(self, PluginInterfaceName):
@@ -221,7 +221,88 @@ class AnalyseBase(object):
             raise e
 
     @staticmethod
+    def MetaFlagGenerator(InputData, InputTemplate, BytesDecoding='utf-8'):
+        # 元标签构造：Flag元数据化
+
+        # 实现方案：
+        # Flag构造时用户可选择命中的数据中指定字段和值作为Flag的一部分
+        # 而且还可以指定加入新的键值对，新的键值对名称和内容都支持占位符
+        # 也允许用户构造一个新的映射，将数据中的key以新的名字写入flag
+        # 由于dict是可变数据类型，无法直接当做key，因此需要将其转化为元组（tuple）
+        # 构造完毕的Flag（dict类型）按key进行排序，然后转化成tuple，形如：
+        # ((key1, val1),(key2, val2)...(key_n, val_n))
+        # 由于元素内容相同但顺序不同的元祖被认为是不同的元祖
+        # 因此FLAG构造完毕转换成元组的时候按Key排序以去除特序性
+        # 特别地，如果最终Flag只包含一个键值对，则直接以(key, value)二元组作为flag
+        # 而无需再包一层tuple
+
+        # 元数据Flag规则核心将作为新的规则核心基类。
+        # 原核心规则将变成该核心规则的一个特例，即Flag元组只包含两个元素："Flag"和"{构造的Flag}"
+
+        # 元数据化Flag的InputTemplate将是一个二元的有序序列（list或者tuple）
+        # 每个元素都是字典（dict）
+        # 第一个字典存储Flag字段映射。如果需要将引用数据中的字段改名之后写入flag，需要在写在这个字典里
+        # 该字典的Key是引用数据中的字段名，Value是映射后在Flag里的新字段名。
+        # 如果希望继续使用原数据字段名称无需修改，则将Value设置为和Key相同、None或者''
+        # 如果引用的字段在原数据中不存在，将忽略该字段（不写入Flag）
+        # 第二个字典存储附加字段，Key对应的值将经过占位符替换之后，和Key一起作为键值对写入Flag
+        
+        # 例：
+        # 输入InputTemplate模板：
+        # template = (
+        #     {
+        #         'Name': None,
+        #         'Sex': 'Gender'
+        #     },
+        #     {
+        #         'Info': '{Name}, {age}, {Sex}'
+        #     }
+        # )
+        # 输入数据：
+        # data = {
+        #     'Name': 'Alice',
+        #     'Sex': 'Female',
+        #     'Age': 26
+        # }
+        # 构造的Flag字典：
+        # f = {
+        #     'Name': 'Alice',
+        #     'Gender': 'Female',
+        #     'Info': 'Alice, 26, Female'
+        # }
+        # 经过排序后构造的元祖类型Flag：
+        # ft = (
+        #     ('Gender', 'Female'),
+        #     ('Info', 'Alice, 26, Female'),
+        #     ('Name', 'Alice')
+        # )
+        rtnFlag = dict()
+        if type(InputTemplate) not in (tuple, list) or not InputTemplate:
+            return None
+        if type(InputTemplate[0]) == dict:
+            rtnFlag.update(
+                {InputTemplate[0][k] if InputTemplate[0][k] else k: InputData[k] for k in InputTemplate[0] if k in InputData}
+            )
+        if len(InputTemplate)>=2 and type(InputTemplate[1])==dict:
+            rtnFlag.update(
+                {k:AnalyseBase.PlaceHolderReplace(InputData, InputTemplate[1][k], BytesDecoding) for k in InputTemplate[1]}
+            )
+        rtn = tuple(sorted(rtnFlag.items()))
+        if len(rtn) == 1:
+            rtn = rtn[0]
+        return rtn
+
+    @staticmethod
     def FlagGenerator(InputData, InputTemplate, BytesDecoding='utf-8'):
+        if type(InputTemplate) == str:
+            return AnalyseBase.MetaFlagGenerator(InputData, (None, {'Flag': InputTemplate}), BytesDecoding)
+        elif type(InputTemplate) in (tuple, list) and InputTemplate:
+            return AnalyseBase.MetaFlagGenerator(InputData, InputTemplate, BytesDecoding)
+        else:
+            return None
+
+    @staticmethod
+    def PlaceHolderReplace(InputData, InputTemplate, BytesDecoding='utf-8'):
         '默认的Flag生成函数，根据输入的数据和模板构造Flag。将模板里用大括号包起来的字段名替换为InputData对应字段的内容，如果包含bytes字段，需要指定解码方法'
         if not InputTemplate:
             return None
@@ -478,22 +559,6 @@ class CoreFieldCheck(AnalyseBase.FieldCheckPluginBase):
         fieldCheckResult = ((matchCode < 0) ^ fieldCheckResult) # 负数代码，结果取反
         return fieldCheckResult
 
-    # def AnalyseSingleField(self, InputData, InputFieldCheckRule):
-    #     '插件数据分析方法用户函数，接收被分析的dict()类型数据和规则作为参考数据，由用户函数判定是否满足规则。返回值定义同DefaultSingleRuleTest()函数'
-    #     # 如果无需操作对分析引擎内部对象，可无需改动该函数
-    #     # 如无特殊处理，会调用默认的字段检查函数检查规则生成的数据
-    #     # 如有需要，可重写本函数，返回布尔型数据
-    #     if self.FieldCheck(
-    #         self.DataPreProcess(
-    #             InputData,
-    #             InputFieldCheckRule
-    #         ),
-    #         InputFieldCheckRule
-    #     ):
-    #         return self.DataPostProcess(InputData, InputFieldCheckRule)
-    #     else:
-    #         return False
-
     @property
     def PluginInstructions(self):
         '插件介绍文字'
@@ -501,7 +566,7 @@ class CoreFieldCheck(AnalyseBase.FieldCheckPluginBase):
 
     @property
     def AliasName(self):
-        return coreFieldCheckPluginName
+        return "core"
 
 class CoreRule(AnalyseBase.RulePluginBase):
     _PluginRuleFields = {
@@ -619,4 +684,4 @@ class CoreRule(AnalyseBase.RulePluginBase):
 
     @property
     def AliasName(self):
-        return coreRulePluginName
+        return "core"

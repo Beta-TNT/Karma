@@ -60,13 +60,10 @@ SampleRule1 = {                                  # A simple sample rule dict
                             },
                             {
                                 'FieldName': 'SubSampleField2',
-                                'PluginName': 'regex',              # regular expression test
-                                'RegexFunc': 'findall',
-                                'RegexPattern': '\.DLL',
-                                'ResultIndex': 0,                   # extract result index zero
-                                'RegexFlag': 2,                     # re.IGNORECASE
-                                'MatchCode': 1,
-                                'MatchContent': '.dll'
+                                'PluginName': 'startsendswith',
+                                'Func': 'endswith',
+                                'MatchContent': ['.dll', '.exe', '.ocx'],
+                                'Operator': 2
                             }
                         ]
                     }
@@ -94,6 +91,26 @@ SampleRule2 = {                                  # A simple sample rule dict
     ]
 }
 
+SampleRule3 = {                                  # A simple sample rule dict
+    'RuleName': 'SampleRule',                   # Optional, actually not even used.
+    'Operator': 1,                              # OpAnd
+    'PrevFlag': 'RuleHit:{SampleField2}',       # Optional, default value: None
+    'ExcludeFlag': None,                        # Optional, default value: None
+    'RemoveFlag': None,                         # Optional, default value: None
+    'CurrentFlag': 'time to stop this',       # Optional, default value: None
+    'FieldCheckList': [                         # Optional, if field check is not necessary
+        {
+            'FieldName': 'SampleField2',
+            'PluginName': 'startsendswith',
+            'Operator': 2,
+            'MatchContent': ['.exe','.dll','.ocx'],
+            'Func': 'endswith',
+            'MatchCode': 1,                     # Equal test
+        }
+    ]
+}
+
+
 
 def DummyCallbackFunc1(InputData, HitRule, HitItem, RemovedItem):
     print('rule hit!')
@@ -112,9 +129,24 @@ if __name__=='__main__':
     k = AnalyseBase()
     rules = {
         'rule1':SampleRule1,
-        'rule2':SampleRule2
+        'rule2':SampleRule3
     }
     k.SingleRuleAnalyse(SampleData1, SampleRule1, DummyCallbackFunc1)
     hitItems2=k.MultiRuleAnalyse(SampleData2, rules, DummyCallbackFunc2)
-
+    k.MetaFlagGenerator(
+        {
+            'Name': 'Alice',
+            'Sex': 'Female',
+            'Age': 26
+        },
+        (
+            {
+                'Name': None,
+                'Sex': 'Gender'
+            },
+            {
+                'Info': '{Name}, {Age}, {Sex}'
+            }
+        )
+    )
     pass
