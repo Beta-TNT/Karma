@@ -272,16 +272,20 @@ class AnalyseBase(object):
         #     ('Info', 'Alice, 26, Female'),
         #     ('Name', 'Alice')
         # )
-        rtnFlag = dict()
-        if type(InputTemplate) not in (tuple, list) or not InputTemplate:
+        if not (InputTemplate and type(InputTemplate) in (tuple, list) and all(map(lambda x:type(x) == dict, InputTemplate))):
             return None
-        if type(InputTemplate[0]) == dict:
+
+        rtnFlag = {InputTemplate[0][k] if InputTemplate[0][k] else k: InputData[k] for k in InputTemplate[0] if k in InputData}
+        # 替代方案：
+        # rtnFlag = {InputTemplate[0][k] if InputTemplate[0][k] else k: InputData.get(k) for k in InputTemplate[0]} 
+        # FieldName在数据中不存在时将('FieldName', None)写入Flag的方案
+        # 原代码是FieldName在数据中不存在时忽略。
+        # 两种方案各有应用场景，焦点在于用户对于输入数据的掌握程度
+        # 或者规则迁移时目的环境的数据字段名是否有变化
+
+        if len(InputTemplate)>=2:
             rtnFlag.update(
-                {InputTemplate[0][k] if InputTemplate[0][k] else k: InputData[k] for k in InputTemplate[0] if k in InputData}
-            )
-        if len(InputTemplate)>=2 and type(InputTemplate[1])==dict:
-            rtnFlag.update(
-                {k:AnalyseBase.PlaceHolderReplace(InputData, InputTemplate[1][k], BytesDecoding) for k in InputTemplate[1]}
+                {AnalyseBase.PlaceHolderReplace(InputData, k, BytesDecoding):AnalyseBase.PlaceHolderReplace(InputData, InputTemplate[1][k], BytesDecoding) for k in InputTemplate[1]}
             )
         return tuple(sorted(rtnFlag.items()))
 
