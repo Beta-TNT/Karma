@@ -288,8 +288,6 @@ class AnalyseBase(object):
                 {k:AnalyseBase.PlaceHolderReplace(InputData, InputTemplate[1][k], BytesDecoding) for k in InputTemplate[1]}
             )
         rtn = tuple(sorted(rtnFlag.items()))
-        if len(rtn) == 1:
-            rtn = rtn[0]
         return rtn
 
     @staticmethod
