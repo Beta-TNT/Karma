@@ -229,14 +229,10 @@ class AnalyseBase(object):
         # 而且还可以指定加入新的键值对，新的键值对名称和内容都支持占位符
         # 也允许用户构造一个新的映射，将数据中的key以新的名字写入flag
         # 由于dict是可变数据类型，无法直接当做key，因此需要将其转化为元组（tuple）
+        # 而且元素内容相同但顺序不同的元祖被认为是不同的元祖
+        # 因此FLAG构造完毕转换成元组的时候按Key排序以去除特序性
         # 构造完毕的Flag（dict类型）按key进行排序，然后转化成tuple，形如：
         # ((key1, val1),(key2, val2)...(key_n, val_n))
-        # 由于元素内容相同但顺序不同的元祖被认为是不同的元祖
-        # 因此FLAG构造完毕转换成元组的时候按Key排序以去除特序性
-        # 特别地，如果最终Flag只包含一个键值对，则直接以(key, value)二元组作为flag
-        # 而无需再包一层tuple
-
-        # 元数据Flag规则核心将作为新的规则核心基类。
         # 原核心规则将变成该核心规则的一个特例，即Flag元组只包含两个元素："Flag"和"{构造的Flag}"
 
         # 元数据化Flag的InputTemplate将是一个二元的有序序列（list或者tuple）
@@ -287,8 +283,7 @@ class AnalyseBase(object):
             rtnFlag.update(
                 {k:AnalyseBase.PlaceHolderReplace(InputData, InputTemplate[1][k], BytesDecoding) for k in InputTemplate[1]}
             )
-        rtn = tuple(sorted(rtnFlag.items()))
-        return rtn
+        return tuple(sorted(rtnFlag.items()))
 
     @staticmethod
     def FlagGenerator(InputData, InputTemplate, BytesDecoding='utf-8'):
