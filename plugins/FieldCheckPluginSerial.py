@@ -300,7 +300,7 @@ class AnalyseBase(object):
                             ) for k in InputTemplate[1]
                         }
                     )
-                )
+                ).items()
             )
         )
 
