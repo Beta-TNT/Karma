@@ -75,7 +75,7 @@ class AnalyseBase(object):
             return self._AnalyseBase._coreFieldCheckPlugin.FieldCheck(TargetData, InputFieldCheckRule)
 
         def AnalyseSingleField(self, InputData, InputFieldCheckRule):
-            '插件数据分析方法用户函数，接收被分析的dict()类型数据和规则作为参考数据，由用户函数判定是否满足规则。返回值定义同DefaultSingleRuleTest()函数'
+            '插件数据分析方法用户函数，接收被分析的dict()类型数据和规则作为参考数据，由用户函数判定是否满足规则。'
             # 如果无需操作对分析引擎内部对象，可无需改动该函数
             # 如无特殊处理，会调用默认的字段检查函数检查规则生成的数据
             # 如有需要，可重写本函数，返回布尔型数据
@@ -86,33 +86,35 @@ class AnalyseBase(object):
             fieldCheckResult = False
             matchContent = InputFieldCheckRule.get('MatchContent')
             operatorLogic = InputFieldCheckRule.get('Operator', 2)
-            if type(matchContent) in (list, tuple, set):
-                matchResults = map(
-                    lambda x:self.FieldCheck(
-                        self.DataPreProcess(
-                            InputData,
-                            InputFieldCheckRule
-                        ),
-                        dict(InputFieldCheckRule, **{"MatchContent" : x})
-                    ),
-                    matchContent
-                )
-                matchResult = False
-                if abs(operatorLogic) == 1:
-                    # OpAll
-                    matchResult = all(matchResults)
-                elif abs(operatorLogic) == 2:
-                    # OpAny
-                    matchResult = any(matchResults)
-                fieldCheckResult = (operatorLogic < 0) ^ matchResult
-            else:
-                fieldCheckResult = self.FieldCheck(
+
+            # 当MatchContent是复数（list, tuple, set）时，
+            # 保持当前其他规则字段不变，使用当前规则和数据对每个MatchContent进行测试，
+            # 多个结果默认使用OpAny逻辑运算符进行判断
+            # 如果MatchContent不是复数，则将其包装成一元list，
+
+            matchResults = map(
+                lambda x:self.FieldCheck(
                     self.DataPreProcess(
                         InputData,
-                        InputFieldCheckRule
+                        x
                     ),
-                    InputFieldCheckRule
+                    x
+                ),
+                map(
+                    lambda x:dict(InputFieldCheckRule, **{"MatchContent" : x}),
+                    matchContent if type(matchContent) in (list, tuple, set) else [matchContent]
                 )
+            )
+
+            matchResult = False
+            if abs(operatorLogic) == 1:
+                # OpAll
+                matchResult = all(matchResults)
+            elif abs(operatorLogic) == 2:
+                # OpAny
+                matchResult = any(matchResults)
+            fieldCheckResult = (operatorLogic < 0) ^ matchResult
+
             if fieldCheckResult:
                 return self.DataPostProcess(InputData, InputFieldCheckRule)
             else:
@@ -240,9 +242,9 @@ class AnalyseBase(object):
         # 第一个字典存储Flag字段映射。如果需要将引用数据中的字段改名之后写入flag，需要在写在这个字典里
         # 该字典的Key是引用数据中的字段名，Value是映射后在Flag里的新字段名。
         # 如果希望继续使用原数据字段名称无需修改，则将Value设置为和Key相同、None或者''
-        # 如果引用的字段在原数据中不存在，将忽略该字段（不写入Flag）
+        # 尤其注意，如果引用的字段在原数据中不存在，写入的键值对是("FieldName", None)
+
         # 第二个字典存储附加字段，Key对应的值将经过占位符替换之后，和Key一起作为键值对写入Flag
-        
         # 例：
         # 输入InputTemplate模板：
         # template = (
@@ -251,7 +253,7 @@ class AnalyseBase(object):
         #         'Sex': 'Gender'
         #     },
         #     {
-        #         'Info': '{Name}, {age}, {Sex}'
+        #         'Info': '{Name}, {Age}, {Sex}'
         #     }
         # )
         # 输入数据：
@@ -275,19 +277,32 @@ class AnalyseBase(object):
         if not (InputTemplate and type(InputTemplate) in (tuple, list) and all(map(lambda x:type(x) == dict, InputTemplate))):
             return None
 
-        rtnFlag = {InputTemplate[0][k] if InputTemplate[0][k] else k: InputData[k] for k in InputTemplate[0] if k in InputData}
-        # 替代方案：
-        # rtnFlag = {InputTemplate[0][k] if InputTemplate[0][k] else k: InputData.get(k) for k in InputTemplate[0]} 
-        # FieldName在数据中不存在时将('FieldName', None)写入Flag的方案
-        # 原代码是FieldName在数据中不存在时忽略。
-        # 两种方案各有应用场景，焦点在于用户对于输入数据的掌握程度
-        # 或者规则迁移时目的环境的数据字段名是否有变化
-
-        if len(InputTemplate)>=2:
-            rtnFlag.update(
-                {AnalyseBase.PlaceHolderReplace(InputData, k, BytesDecoding):AnalyseBase.PlaceHolderReplace(InputData, InputTemplate[1][k], BytesDecoding) for k in InputTemplate[1]}
+        return tuple(
+            sorted(
+                dict(
+                    {InputTemplate[0][k] if InputTemplate[0][k] else k: InputData[k] for k in InputTemplate[0] if k in InputData},
+                    # 替代方案：
+                    # {InputTemplate[0][k] if InputTemplate[0][k] else k: InputData.get(k) for k in InputTemplate[0]} 
+                    # FieldName在数据中不存在时将('FieldName', None)写入Flag的方案
+                    # 原代码是FieldName在数据中不存在时忽略。
+                    # 两种方案各有应用场景，焦点在于用户对于输入数据的掌握程度
+                    # 或者规则迁移时目的环境的数据字段名是否有变化
+                    **dict(
+                        {} if len(InputTemplate) < 2 else {
+                            AnalyseBase.PlaceHolderReplace(
+                                InputData,
+                                k,
+                                BytesDecoding
+                            ):AnalyseBase.PlaceHolderReplace(
+                                InputData,
+                                InputTemplate[1][k],
+                                BytesDecoding
+                            ) for k in InputTemplate[1]
+                        }
+                    )
+                ).items()
             )
-        return tuple(sorted(rtnFlag.items()))
+        )
 
     @staticmethod
     def FlagGenerator(InputData, InputTemplate, BytesDecoding='utf-8'):
@@ -299,12 +314,12 @@ class AnalyseBase(object):
             return None
 
     @staticmethod
-    def PlaceHolderReplace(InputData, InputTemplate, BytesDecoding='utf-8'):
+    def PlaceHolderReplace(InputData, InputTemplateString, BytesDecoding='utf-8'):
         '默认的Flag生成函数，根据输入的数据和模板构造Flag。将模板里用大括号包起来的字段名替换为InputData对应字段的内容，如果包含bytes字段，需要指定解码方法'
-        if not InputTemplate:
+        if not InputTemplateString:
             return None
 
-        if type(InputTemplate) != str:
+        if type(InputTemplateString) != str:
             raise TypeError("Invalid Template type, expecting str")
         if type(InputData) != dict:
             raise TypeError("Invalid InputData type, expecting dict")
@@ -320,11 +335,11 @@ class AnalyseBase(object):
                     except Exception:
                         InputData[inputDataKey] = ""
 
-        rtn = InputTemplate.format(**InputData)
+        rtn = InputTemplateString.format(**InputData)
         return rtn
 
     def AnalyseSingleField(self, InputData, InputFieldCheckRule):
-        '单独的插件执行函数，如果传入的插件名无效，返回失配结果False'
+        '单独的插件执行函数，如果包含的插件名无效，返回失配结果False'
         pluginObj = self._plugins['FieldCheckPlugins'].get(InputFieldCheckRule.get('PluginName'), self._coreFieldCheckPlugin)
         if pluginObj:
             return pluginObj.AnalyseSingleField(InputData, InputFieldCheckRule)
@@ -462,7 +477,7 @@ class CoreFieldCheck(AnalyseBase.FieldCheckPluginBase):
             return False
         fieldCheckResult = False
         matchContent = InputFieldCheckRule.get("MatchContent")
-        matchCode = InputFieldCheckRule["MatchCode"]
+        matchCode = InputFieldCheckRule.get("MatchCode", 2)
         if matchCode == self.FieldMatchMode.Preserved:
             fieldCheckResult = True
         elif abs(matchCode) == self.FieldMatchMode.Equal:
