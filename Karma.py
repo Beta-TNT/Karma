@@ -93,12 +93,12 @@ class AnalyseBase(object):
             # 如果MatchContent不是复数，则将其包装成一元list，
 
             matchResults = map(
-                lambda x:self.FieldCheck(
+                lambda ruleItem:self.FieldCheck(
                     self.DataPreProcess(
                         InputData,
-                        x
+                        ruleItem
                     ),
-                    x
+                    ruleItem
                 ),
                 map(
                     lambda x:dict(InputFieldCheckRule, **{"MatchContent" : x}),
@@ -222,8 +222,6 @@ class AnalyseBase(object):
         except Exception as e:
             raise e
 
-    @staticmethod
-    def MetaFlagGenerator(InputData, InputTemplate, BytesDecoding='utf-8'):
         # 元标签构造：Flag元数据化
 
         # 实现方案：
@@ -274,19 +272,22 @@ class AnalyseBase(object):
         #     ('Info', 'Alice, 26, Female'),
         #     ('Name', 'Alice')
         # )
-        if not (InputTemplate and type(InputTemplate) in (tuple, list) and all(map(lambda x:type(x) == dict, InputTemplate))):
-            return None
-
-        return tuple(
+    MetaFlagGenerator = staticmethod(
+        lambda InputData, InputTemplate, IgnoreInvalidKey=True, BytesDecoding='utf-8': None if not (
+            InputTemplate 
+            and type(InputTemplate) in (tuple, list) 
+            and all(map(lambda x:type(x) == dict, InputTemplate))
+        ) else tuple(
             sorted(
                 dict(
-                    {InputTemplate[0][k] if InputTemplate[0][k] else k: InputData[k] for k in InputTemplate[0] if k in InputData},
-                    # 替代方案：
-                    # {InputTemplate[0][k] if InputTemplate[0][k] else k: InputData.get(k) for k in InputTemplate[0]} 
-                    # FieldName在数据中不存在时将('FieldName', None)写入Flag的方案
-                    # 原代码是FieldName在数据中不存在时忽略。
-                    # 两种方案各有应用场景，焦点在于用户对于输入数据的掌握程度
-                    # 或者规则迁移时目的环境的数据字段名是否有变化
+                    {
+                        InputTemplate[0][k] if InputTemplate[0][k] 
+                        else k:InputData[k] for k in InputTemplate[0] if k in InputData
+                    } if IgnoreInvalidKey 
+                    else {
+                        InputTemplate[0][k] if InputTemplate[0][k] 
+                        else k: InputData.get(k) for k in InputTemplate[0]
+                    },
                     **dict(
                         {} if len(InputTemplate) < 2 else {
                             AnalyseBase.PlaceHolderReplace(
@@ -303,40 +304,48 @@ class AnalyseBase(object):
                 ).items()
             )
         )
+    )
 
-    @staticmethod
-    def FlagGenerator(InputData, InputTemplate, BytesDecoding='utf-8'):
-        if type(InputTemplate) == str:
-            return AnalyseBase.MetaFlagGenerator(InputData, (None, {'Flag': InputTemplate}), BytesDecoding)
-        elif type(InputTemplate) in (tuple, list) and InputTemplate:
-            return AnalyseBase.MetaFlagGenerator(InputData, InputTemplate, BytesDecoding)
-        else:
-            return None
+    FlagGenerator = staticmethod(lambda InputData, InputTemplate, BytesDecoding='utf-8':
+        AnalyseBase.MetaFlagGenerator(InputData, (None, {'Flag': InputTemplate}), BytesDecoding)
+        if type(InputTemplate) == str else
+            AnalyseBase.MetaFlagGenerator(InputData, InputTemplate, BytesDecoding)
+            if type(InputTemplate) in (tuple, list) and InputTemplate else
+                None
+    )
 
-    @staticmethod
-    def PlaceHolderReplace(InputData, InputTemplateString, BytesDecoding='utf-8'):
-        '默认的Flag生成函数，根据输入的数据和模板构造Flag。将模板里用大括号包起来的字段名替换为InputData对应字段的内容，如果包含bytes字段，需要指定解码方法'
-        if not InputTemplateString:
-            return None
-
-        if type(InputTemplateString) != str:
-            raise TypeError("Invalid Template type, expecting str")
-        if type(InputData) != dict:
-            raise TypeError("Invalid InputData type, expecting dict")
-            
-        for inputDataKey in InputData:
-            inputDataItem = InputData[inputDataKey]
-            if type(inputDataItem) in (bytes, bytearray):
-                if BytesDecoding == 'base64':
-                    InputData[inputDataKey] = base64.b64decode(inputDataItem)
-                else:
-                    try:
-                        InputData[inputDataKey] = inputDataItem.decode(BytesDecoding)
-                    except Exception:
-                        InputData[inputDataKey] = ""
-
-        rtn = InputTemplateString.format(**InputData)
-        return rtn
+    # @staticmethod
+    # def PlaceHolderReplace(InputData, InputTemplateString, BytesDecoding='utf-8'):
+    #     '默认的Flag生成函数，根据输入的数据和模板构造Flag。将模板里用大括号包起来的字段名替换为InputData对应字段的内容，如果包含bytes字段，需要指定解码方法'
+    #     if not (InputTemplateString and type(InputTemplateString) == str and type(InputData) == dict):
+    #         return None
+        
+    #     for inputDataKey in InputData:
+    #         inputDataItem = InputData[inputDataKey]
+    #         if type(inputDataItem) in (bytes, bytearray):
+    #             if BytesDecoding == 'base64':
+    #                 InputData[inputDataKey] = base64.b64decode(inputDataItem)
+    #             else:
+    #                 try:
+    #                     InputData[inputDataKey] = inputDataItem.decode(BytesDecoding)
+    #                 except Exception:
+    #                     InputData[inputDataKey] = ""
+    #     rtn = InputTemplateString.format(**InputData)
+    #     return rtn
+    
+    PlaceHolderReplace = staticmethod(
+        lambda InputData, InputTemplateString, BytesDecoding='utf-8':
+            None if not (InputTemplateString and type(InputTemplateString) == str and type(InputData) == dict) 
+            else InputTemplateString.format(**{
+                k:(
+                    base64.b64decode(InputData[k]) if BytesDecoding == 'base64'
+                    else InputData[k].decode(BytesDecoding)
+                ) if type(InputData[k]) in (bytes, bytearray) 
+                else InputData[k]
+                for k in InputData
+            }
+        )
+    )
 
     def AnalyseSingleField(self, InputData, InputFieldCheckRule):
         '单独的插件执行函数，如果包含的插件名无效，返回失配结果False'
