@@ -338,7 +338,7 @@ class AnalyseBase(object):
             None if not (InputTemplateString and type(InputTemplateString) == str and type(InputData) == dict) 
             else InputTemplateString.format(**{
                 k:(
-                    base64.b64decode(InputData[k]) if BytesDecoding == 'base64'
+                    base64.b64encode(InputData[k]).decode('ascii') if BytesDecoding == 'base64'
                     else InputData[k].decode(BytesDecoding)
                 ) if type(InputData[k]) in (bytes, bytearray) 
                 else InputData[k]
