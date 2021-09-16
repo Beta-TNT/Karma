@@ -31,7 +31,7 @@ class FieldCheckPlugin(Karma.AnalyseBase.FieldCheckPluginBase):
 
     _timers = dict()
     def DataPreProcess(self, InputData, InputRule):
-        timerName = self._AnalyseBase.FlagGenerator(InputData, InputRule.get('TimerName'))
+        timerName = self._AnalyseBase.PlaceHolderReplace(InputData, InputRule.get('TimerName'))
         timerOperation = InputRule.get('TimerOperation', 'peek')
         timerObj = self._timers.get(timerName)
         rtn = None

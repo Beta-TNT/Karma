@@ -4,6 +4,7 @@ import Karma
 
 class FieldCheckPlugin(Karma.AnalyseBase.FieldCheckPluginBase):
     '根据指定规则提取其他插件产生值（DataPreProcess()函数返回值），以指定的名称写入数据并使用当前规则进行测试'
+    # 该插件的一个使用技巧是将FieldMatchCode设置为0（Preserved）
     _selfName = os.path.splitext(os.path.basename(__file__))[0]
     _selfAlias = 'extractor'
 
@@ -20,8 +21,8 @@ class FieldCheckPlugin(Karma.AnalyseBase.FieldCheckPluginBase):
             dict,
             {}
         ),
-        "ExtractFieldName": (
-            "写入数据的字段名。如果不指定，则以CallPluginName字段内容命名",
+        "OutputFieldName": (
+            "输出数据的字段名。如果不指定，则以CallPluginName字段内容命名",
             str,
             ''
         )
@@ -32,11 +33,11 @@ class FieldCheckPlugin(Karma.AnalyseBase.FieldCheckPluginBase):
             # 禁止套娃
             return None
         pluginRule = InputFieldCheckRule.get('CallPluginRule', InputFieldCheckRule)
-        extractFieldName = InputFieldCheckRule.get('ExtractFieldName', pluginName)
+        outputFieldName = InputFieldCheckRule.get('OutputFieldName', pluginName)
         pluginObj = self._AnalyseBase._plugins['FieldCheckPlugins'].get(pluginName)
         if pluginObj:
             pluginRtn = pluginObj.DataPreProcess(InputData, pluginRule)
-            InputData[extractFieldName] = pluginRtn
+            InputData[outputFieldName] = pluginRtn
             return pluginRtn
         else:
             return None

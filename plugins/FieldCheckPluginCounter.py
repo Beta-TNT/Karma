@@ -32,7 +32,7 @@ class FieldCheckPlugin(Karma.AnalyseBase.FieldCheckPluginBase):
 
     _counter = dict()
     def DataPreProcess(self, InputData, InputRule):
-        counterName = self._AnalyseBase.FlagGenerator(InputData, InputRule.get('CounterName'))
+        counterName = self._AnalyseBase.PlaceHolderReplace(InputData, InputRule.get('CounterName'))
         counterOperation = InputRule.get('CounterOperation', 'count')
         counterValue = self._counter.get(counterName)
         rtn = None
