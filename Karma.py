@@ -3,8 +3,10 @@
 __author__ = 'Beta-TNT'
 __version__= '3.2.0'
 
+from Karma.plugins.FieldCheckPluginSlicer import FieldCheckPlugin
 import re, os, base64
 from enum import IntEnum
+from fnmatch import fnmatchcase, fnmatch
 
 class AnalyseBase(object):
 
@@ -401,8 +403,10 @@ class AnalyseBase(object):
             rtn = hitItem
         return ruleCheckResult, rtn
 
-    def MultiRuleAnalyse(self, InputData, InputRules, RuleHitCallbackFunc):
+    def MultiRuleAnalyse(self, InputData, InputRules, RuleHitCallbackFunc, RecycleData=False):
         '''默认的分析算法主函数。根据已经加载的规则和输入数据。'''
+        # RecycleData: 是否循环利用输入数据，如果为True，先前规则和插件对输入数据的修改将被保留下来作为下一条规则的输入数据
+        # 对于输入规则集为dict这类无法预测规则执行顺序情况，建议将其设置为False
         if not RuleHitCallbackFunc:
             RuleHitCallbackFunc = self._DummyCallbackFunc
             
@@ -411,7 +415,7 @@ class AnalyseBase(object):
             return {i[1] for i in
                 map(
                     lambda x:self.SingleRuleAnalyse(
-                        InputData=InputData,
+                        InputData=InputData if RecycleData else InputData.copy(),
                         InputRule=x,
                         RuleHitCallbackFunc=RuleHitCallbackFunc
                     ),
@@ -426,7 +430,7 @@ class AnalyseBase(object):
                     InputRules.keys(),
                     map(
                         lambda x:self.SingleRuleAnalyse(
-                            InputData=InputData,
+                            InputData=InputData if RecycleData else InputData.copy(),
                             InputRule=x,
                             RuleHitCallbackFunc=RuleHitCallbackFunc
                         ),
@@ -441,13 +445,16 @@ class CoreFieldCheck(AnalyseBase.FieldCheckPluginBase):
 
     class FieldMatchMode(IntEnum):
         Preserved           = 0 # 为带字段比较功能插件预留，使用该代码的字段匹配结果永真，用于将插件处理结果传递给下一个插件
-        Equal               = 1 # 值等匹配。数字相等或者字符串完全一样，支持二进制串比较，布尔型数据用0/1判断False和True
-        SequenceContain     = 2 # 序列匹配，包括文本匹配（忽略大小写）和二进制串匹配，包含即命中。如果需要具体命中位置，请用AnalyzerPluginSeqFind插件
+        Equal               = 1 # 值等匹配。数字相等或者字符串完全一样（大小写敏感），支持二进制串比较，布尔型数据用0/1判断False和True
+        SequenceContain     = 2 # 序列匹配，包括文本匹配（大小写敏感）和二进制串匹配，包含即命中。如果需要具体命中位置，请用AnalyzerPluginSeqFind插件
         RegexTest           = 3 # 正则匹配，正则表达式有匹配即命中。如需判断匹配命中的内容，请用AnalyzerPluginRegex插件
         GreaterThan         = 4 # 大于（数字）
         LengthEqual         = 5 # 元数据比较：数据长度等于（忽略数字类型数据）
         LengthGreaterThan   = 6 # 元数据比较：数据长度大于（忽略数字类型数据）
         SubFieldRuleList    = 7 # 应对多层数据的子规则集匹配，FieldName对应的字段必须是dict。如果不指定FieldName，则判断当前层级数据
+        WildcardMatch       = 8 # 大小写敏感的通配符字符串匹配，支持?和*。可以用 '?*' 或者 '*?' 判断字符串是否为空
+        IcWildcardMatch     = 9 # 大小写不敏感的通配符字符串匹配，字符串不敏感相等匹配也可以使用这个
+
         # 如果有其他二元（数据-判定内容）运算判定，后续还可以更新到这里
         # 匹配代码对应的负数代表结果取反，例如-1代表不等于（NotEqual），不再显式声明
         # Negative code means flip the result, i.e., -1 means NotEqual, -4 means LessThanOrEqual
@@ -576,6 +583,10 @@ class CoreFieldCheck(AnalyseBase.FieldCheckPluginBase):
                 InputFieldCheckRuleList=matchContent,
                 InputOperator=InputFieldCheckRule['Operator']
             )
+        elif abs(matchCode) == self.FieldMatchMode.WildcardMatch:
+            fieldCheckResult = fnmatchcase(TargetData, matchContent)
+        elif abs(matchCode) == self.FieldMatchMode.IcWildcardMatch:
+            fieldCheckResult = fnmatch(TargetData, matchContent)
         else:
             pass
         fieldCheckResult = ((matchCode < 0) ^ fieldCheckResult) # 负数代码，结果取反
