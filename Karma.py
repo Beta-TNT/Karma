@@ -3,7 +3,6 @@
 __author__ = 'Beta-TNT'
 __version__= '3.2.0'
 
-from _typeshed import NoneType
 import re, os, base64
 from enum import IntEnum
 
@@ -277,7 +276,7 @@ class AnalyseBase(object):
         lambda InputData, InputTemplate, IgnoreInvalidKey=True, BytesDecoding='utf-8': None if not (
             InputTemplate 
             and type(InputTemplate) in (tuple, list) 
-            and all(map(lambda x:type(x) in (dict, NoneType), InputTemplate))
+            and all(map(lambda x:type(x) == dict, InputTemplate))
         ) else tuple(
             sorted(
                 dict(
@@ -308,7 +307,7 @@ class AnalyseBase(object):
     )
 
     FlagGenerator = staticmethod(lambda InputData, InputTemplate, BytesDecoding='utf-8':
-        AnalyseBase.MetaFlagGenerator(InputData, (None, {'Flag': InputTemplate}), True, BytesDecoding)
+        AnalyseBase.MetaFlagGenerator(InputData, ({}, {'Flag': InputTemplate}), True, BytesDecoding)
         if type(InputTemplate) == str else
         AnalyseBase.MetaFlagGenerator(InputData, InputTemplate, BytesDecoding)
         if type(InputTemplate) in (tuple, list) and InputTemplate else
