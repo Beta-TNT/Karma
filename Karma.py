@@ -3,10 +3,11 @@
 __author__ = 'Beta-TNT'
 __version__= '3.2.0'
 
-from Karma.plugins.FieldCheckPluginSlicer import FieldCheckPlugin
-import re, os, base64
+import os
 from enum import IntEnum
 from fnmatch import fnmatchcase, fnmatch
+from re import search
+from base64 import b64decode, b64encode
 
 class AnalyseBase(object):
 
@@ -341,7 +342,7 @@ class AnalyseBase(object):
         else InputTemplateString.format(
             **{
                 k:(
-                    base64.b64encode(InputData[k]).decode('ascii') if BytesDecoding == 'base64'
+                    b64encode(InputData[k]).decode('ascii') if BytesDecoding == 'base64'
                     else InputData[k].decode(BytesDecoding)
                 ) if type(InputData[k]) in (bytes, bytearray) 
                 else InputData[k]
@@ -503,7 +504,7 @@ class CoreFieldCheck(AnalyseBase.FieldCheckPluginBase):
                 if type(TargetData) in {bytes, bytearray} and type(matchContent)==str:
                     # 如果原数据类型是二进制，并且比较内容是字符串，则试着将比较内容字符串按BASE64转换成bytes后再进行比较
                     # for binary input data, try to decode it into BASE64 string before check
-                    matchContent = base64.b64decode(matchContent)
+                    matchContent = b64decode(matchContent)
                     # 特别注明。如果需要比较二进制的原数据是否是某个字符串的二进制编码，需要先将比较内容字符串按这种编码解码成bytes，再编码成BASE64
                     # InputFieldCheckRule["MatchContent"] = base64.b64encode(matchContentStr.encode('utf-8')))
                 if type(matchContent) == type(TargetData) or {type(TargetData), type(matchContent)} in {bytes, bytearray}:
@@ -517,11 +518,8 @@ class CoreFieldCheck(AnalyseBase.FieldCheckPluginBase):
             except:
                 pass
         elif abs(matchCode) == self.FieldMatchMode.SequenceContain:
-            # 文本匹配，支持字符串比对和二进制比对。字符串比对忽略大小写。
-            # 如果需要进行二进制匹配，或者大小写敏感匹配，请将输入数据和比较内容都转换成bytes，并将比较内容编码成BASE64串再使用。
-            # Text match test, supporting text match (ignore case) and binary match.
-            # In case you need case-sensitive check,
-            # encode test data and match content into bytes, and encode match content into base64 string before using.
+            # 文本匹配，支持字符串比对和二进制比对。当输入数据是二进制时，会尝试将字符串类型的比较内容按base64解码成bytes
+            # Text match test, supporting text match and binary match.
             try:
                 if type(matchContent) not in {bytes, bytearray, str}:
                     # pre-proccess for matchContent: convert it into string if it's not bytes, bytearray or str.
@@ -534,12 +532,13 @@ class CoreFieldCheck(AnalyseBase.FieldCheckPluginBase):
                     # 如果都是二进制、相同数据类型或者目标数据是列表，无需预处理
                     # no additional pre-process for them if they are all binary or all string
                     pass
-                elif type(TargetData) in {bytes, bytearray} and type(matchContent)==str:
-                    # 如果输入数据类型是二进制，则试着将比较内容字符串按BASE64转换成bytes后再进行比较
-                    # for binary input data, try to decode it into BASE64 string before check
-                    matchContent = base64.b64decode(matchContent)
                 else:
-                    pass
+                    if type(TargetData) in {bytes, bytearray} and type(matchContent)==str:
+                        # 如果输入数据类型是二进制，则试着将比较内容字符串按BASE64转换成bytes后再进行比较
+                        # for binary input data, try to decode it into BASE64 string before check
+                        matchContent = b64decode(matchContent)
+                    else:
+                        pass
                 fieldCheckResult = (matchContent in TargetData)
             except:
                 pass
@@ -549,7 +548,7 @@ class CoreFieldCheck(AnalyseBase.FieldCheckPluginBase):
                 matchContent = str(matchContent)
             if type(TargetData) != str:
                 TargetData = str(TargetData)
-            fieldCheckResult = bool(re.search(matchContent, TargetData))
+            fieldCheckResult = bool(search(matchContent, TargetData))
         elif abs(matchCode) == self.FieldMatchMode.GreaterThan:
             # 大小比较（数字，字符串尝试转换成数字，转换不成功略过该字段匹配）
             if type(matchContent) in (int, float) and type(TargetData) in (int, float):
