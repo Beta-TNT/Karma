@@ -1,6 +1,7 @@
-import sys, os, re
+import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import Karma
+from re import compile
 
 class FieldCheckPlugin(Karma.AnalyseBase.FieldCheckPluginBase):
     '正则截取插件'
@@ -30,6 +31,7 @@ class FieldCheckPlugin(Karma.AnalyseBase.FieldCheckPluginBase):
             'invalid value %s: expecting "search", "match" or "findall"'
         )
     }
+    _regularExpressionCache = {} # 正则表达式-正则flag-正则对象缓存
 
     def DataPreProcess(self, InputData, InputFieldCheckRule):
         try:
@@ -38,15 +40,17 @@ class FieldCheckPlugin(Karma.AnalyseBase.FieldCheckPluginBase):
             regexFlag = InputFieldCheckRule.get('RegexFlag', 0)
             regexFunc = InputFieldCheckRule.get('RegexFunc', 'search')
             resultIndex = InputFieldCheckRule.get('ResultIndex', 0)
+            if regexPattern not in self._regularExpressionCache:
+                self._regularExpressionCache[regexPattern] = dict()
+            if regexFlag not in self._regularExpressionCache[regexPattern] :
+                self._regularExpressionCache[regexPattern][regexFlag] = compile(regexPattern, regexFlag)
+            regexObj = self._regularExpressionCache[regexPattern][regexFlag]
             if regexFunc == 'findall':
-                try:
-                    return re.findall(regexPattern, targetData, regexFlag)[resultIndex]
-                except:
-                    return None
+                return regexObj.findall(targetData)[resultIndex]
             elif regexFunc == 'search':
-                return re.search(regexPattern, targetData, regexFlag).group() 
+                return regexObj.search(targetData).group() 
             elif regexFunc == 'match':
-                return re.match(regexPattern, targetData, regexFlag).group()
+                return regexObj.match(targetData).group()
             else:
                 return None
         except:
