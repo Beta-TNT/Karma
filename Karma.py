@@ -6,7 +6,7 @@ __version__= '3.2.0'
 import os
 from enum import IntEnum
 from fnmatch import fnmatchcase, fnmatch
-from re import search
+from re import compile
 from base64 import b64decode, b64encode
 
 class AnalyseBase(object):
@@ -448,7 +448,7 @@ class CoreFieldCheck(AnalyseBase.FieldCheckPluginBase):
         Preserved           = 0 # 为带字段比较功能插件预留，使用该代码的字段匹配结果永真，用于将插件处理结果传递给下一个插件
         Equal               = 1 # 值等匹配。数字相等或者字符串完全一样（大小写敏感），支持二进制串比较，布尔型数据用0/1判断False和True
         SequenceContain     = 2 # 序列匹配，包括文本匹配（大小写敏感）和二进制串匹配，包含即命中。如果需要具体命中位置，请用AnalyzerPluginSeqFind插件
-        RegexTest           = 3 # 正则匹配，正则表达式有匹配即命中。如需判断匹配命中的内容，请用AnalyzerPluginRegex插件
+        RegexSearchTest     = 3 # 正则匹配（search方法），正则表达式有匹配即命中。如需判断匹配命中的内容，请用AnalyzerPluginRegex插件
         GreaterThan         = 4 # 大于（数字）
         LengthEqual         = 5 # 元数据比较：数据长度等于（忽略数字类型数据）
         LengthGreaterThan   = 6 # 元数据比较：数据长度大于（忽略数字类型数据）
@@ -487,6 +487,9 @@ class CoreFieldCheck(AnalyseBase.FieldCheckPluginBase):
             ''
         )
     }
+    
+    _regularExpressionCache = {} # 正则表达式缓存
+
     def FieldCheck(self, TargetData, InputFieldCheckRule):
         '默认的字段检查函数，输入字段的内容以及单条字段检查规则，返回True/False'
         'Default field check func, input target data and single field check rule, returns True/False indicating whether the rule hits.'
@@ -507,7 +510,7 @@ class CoreFieldCheck(AnalyseBase.FieldCheckPluginBase):
                     matchContent = b64decode(matchContent)
                     # 特别注明。如果需要比较二进制的原数据是否是某个字符串的二进制编码，需要先将比较内容字符串按这种编码解码成bytes，再编码成BASE64
                     # InputFieldCheckRule["MatchContent"] = base64.b64encode(matchContentStr.encode('utf-8')))
-                if type(matchContent) == type(TargetData) or {type(TargetData), type(matchContent)} in {bytes, bytearray}:
+                if type(matchContent) == type(TargetData) or {type(TargetData), type(matchContent)}.issubset({bytes, bytearray}):
                     # 同数据类型，直接判断
                     # same data type, test them directly
                     fieldCheckResult = (matchContent == TargetData)
@@ -528,12 +531,12 @@ class CoreFieldCheck(AnalyseBase.FieldCheckPluginBase):
                     # same pre-process for target data.
                     TargetData = str(TargetData)
         
-                if {type(TargetData), type(matchContent)} in {bytes, bytearray} or type(TargetData) == type(matchContent) or type(TargetData) == list:
+                if {type(TargetData), type(matchContent)}.issubset({bytes, bytearray}) or type(TargetData) == type(matchContent) or type(TargetData) == list:
                     # 如果都是二进制、相同数据类型或者目标数据是列表，无需预处理
                     # no additional pre-process for them if they are all binary or all string
                     pass
                 else:
-                    if type(TargetData) in {bytes, bytearray} and type(matchContent)==str:
+                    if type(TargetData) in (bytes, bytearray) and type(matchContent)==str:
                         # 如果输入数据类型是二进制，则试着将比较内容字符串按BASE64转换成bytes后再进行比较
                         # for binary input data, try to decode it into BASE64 string before check
                         matchContent = b64decode(matchContent)
@@ -542,16 +545,21 @@ class CoreFieldCheck(AnalyseBase.FieldCheckPluginBase):
                 fieldCheckResult = (matchContent in TargetData)
             except:
                 pass
-        elif abs(matchCode) == self.FieldMatchMode.RegexTest:
-            # 正则匹配（字符串） regex match
+        elif abs(matchCode) == self.FieldMatchMode.RegexSearchTest:
+            # 正则匹配（字符串） regex search
             if type(matchContent) != str:
                 matchContent = str(matchContent)
             if type(TargetData) != str:
                 TargetData = str(TargetData)
-            fieldCheckResult = bool(search(matchContent, TargetData))
+            try:
+                if matchContent not in self._regularExpressionCache:
+                    self._regularExpressionCache[matchContent] = compile(matchContent)
+                fieldCheckResult = bool(self._regularExpressionCache[matchContent].search(TargetData))
+            except:
+                pass
         elif abs(matchCode) == self.FieldMatchMode.GreaterThan:
             # 大小比较（数字，字符串尝试转换成数字，转换不成功略过该字段匹配）
-            if type(matchContent) in (int, float) and type(TargetData) in (int, float):
+            if {type(matchContent), type(TargetData)}.issubset({int, float}):
                 fieldCheckResult = (matchContent > TargetData)
             else:
                 try:
